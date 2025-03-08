@@ -44,7 +44,8 @@ h1 {
   margin: 20px auto;
   max-width: 640px;
   border: 2px solid #00ffff;
-  border-radius: 10px;
+  border-top-left-radius: 10px; 
+  border-top-right-radius: 10px; 
   overflow: hidden;
   box-shadow: 0 0 20px #00ffff;
 }
@@ -90,6 +91,14 @@ h1 {
   background: #00ffff;
   color: #000;
   box-shadow: 0 0 20px #00ffff;
+}
+
+.control-button:active, 
+.control-button.active {
+  transform: scale(0.9);
+  box-shadow: 0 0 5px #00ffff;
+  background: #008080;
+  color: #fff;
 }
 
 .control-button span {
@@ -165,17 +174,69 @@ h1 {
   box-shadow: 0 0 20px #00ffff;
 }
 
-.notification {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  background-color: #00ff00; /* Green background */
-  color: #000; /* Black text */
-  padding: 15px;
-  border-radius: 5px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  z-index: 1000; /* Ensure it appears above other elements */
-  animation: slideIn 0.5s ease-out;
+.object-input button:active {
+  transform: scale(0.9);
+  box-shadow: 0 0 5px #00ffff;
+  background: #008080;
+  color: #fff;
+}
+
+.object-input button.active {
+  transform: scale(0.9);
+  box-shadow: 0 0 5px #00ffff;
+  background: #008080;
+  color: #fff;
+}
+
+.object-input button svg {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Bounding Box Toggle Button */
+.toggle-bbox-button {
+  right: 80px;
+  padding: 2px 4px;
+  font-size: 10px;
+  font-family: 'Orbitron', sans-serif;
+  background: #000;
+  color: #00ffff;
+  border: 3px solid #00ffff;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 15px #00ffff;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.toggle-bbox-button:hover {
+  background: #00ffff;
+  color: #000;
+  box-shadow: 0 0 30px #00ffff;
+}
+
+.toggle-bbox-button:active {
+  transform: scale(0.95);
+  background: #008080;
+  color: #fff;
+  box-shadow: 0 0 10px #00ffff;
+}
+
+.status {
+  right: 80px;
+  padding: 4px 4px;
+  font-size: 10px;
+  font-family: 'Orbitron', sans-serif;
+  background: #d1ddeb;
+  color: #122929;
+  border: 3px solid #00ffff;
+  border-bottom-left-radius: 10px; 
+  border-bottom-right-radius: 10px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 15px #00ffff;
+  text-transform: uppercase;
+  margin-bottom: 5px;
 }
 
 @keyframes slideIn {

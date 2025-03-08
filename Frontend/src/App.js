@@ -5,24 +5,109 @@ import ObjectInput from './components/ObjectInput';
 import MessageBox from './components/MessageBox';
 import './App.css';
 
+function startWS() {
+  const isSecure = window.location.protocol === "https:";
+  const wsProtocol = isSecure ? "wss" : "ws";
+  const ws = new WebSocket(`${wsProtocol}://${window.location.host}/`)
+  console.log("WebSocket initialized:", ws);
+  return ws
+}
+
+const ws = window.ws = startWS()
+let ws_listener = undefined
+
 function App() {
   const [messages, setMessages] = useState([]);
+  const [imageSrc, setImageSrc] = useState(null);
   const [searchObject, setSearchObject] = useState('');
   const welcomeShown = React.useRef(false);
-  const detections = [
-    ["traffic light", 1302.5496826171875, 0.7404270172119141, 1439.48291015625, 133.2143096923828, 0.255513072013855],
-  ];
+  const [boxes, setBoxes] = useState([]);
+  const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
+
+  const toggleBoundingBoxes = () => {
+    setShowBoundingBoxes(prev => !prev);
+  };
+
+  if (ws_listener !== undefined)
+    ws.removeEventListener("message", ws_listener)
+  ws_listener = m => {
+    const [image_id, ...data] = JSON.parse(m.data)
+    console.log(image_id)
+    fetch(`/var/${image_id}`)
+      .then(response => response.blob()) // Get the image as a blob
+      .then(blob => {
+        const objectURL = URL.createObjectURL(blob);
+        setImageSrc(objectURL);
+      })
+      .catch(error => {
+        console.error('Error fetching the image:', error);
+      });
+
+    setBoxes(data)
+  }
+  ws.addEventListener("message", ws_listener)
 
   // Function to add messages to the message box
   const addMessage = (sender, text) => {
     setMessages((prev) => [...prev, { sender, text }]);
   };
 
-  // Handle movement button clicks
-  const handleMove = (action) => {
-    addMessage("User", `${action} button clicked`);
-    addMessage("System", `Received: ${action}`);
-  };
+  const [isControllerActive, setIsControllerActive] = useState(true);
+
+const handleMove = (action) => {
+  if (action.includes("x:2 y:2") || action.includes("Button Clicked") || action.includes("Key Press:")) {
+    setIsControllerActive(false); 
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { sender: "User", text: "Request Stop" },
+      { sender: "System", text: "Received: Request Stop" },
+    ]);
+    ws.send(JSON.stringify(action) + "\n");
+    return; 
+  }
+
+  if (action.startsWith("Controller:") && isControllerActive) {
+    setMessages((prevMessages) => {
+      if (prevMessages.length > 0 && prevMessages[prevMessages.length - 1].text.startsWith("Movement: Controller:")) {
+        // Replace the last message instead of adding a new one
+        const updatedMessages = [...prevMessages];
+        updatedMessages[updatedMessages.length - 1] = { sender: "User", text: `Movement: ${action}` };
+        return updatedMessages;
+      } else {
+        // Add new message if no previous controller message
+        return [...prevMessages, { sender: "User", text: `Movement: ${action}` }];
+      }
+    });
+    ws.send(JSON.stringify(action) + "\n");
+  } 
+  
+  else if (action.startsWith("Controller:") && !isControllerActive) {
+    // Only activate the controller if action is non-zero
+    if (action !== "Controller: x:0.00 y:0.00") {
+      setIsControllerActive(true); // Reactivate controller
+      setMessages((prevMessages) => {
+        if (action !== "Controller: x:0.00 y:0.00") {
+          const updatedMessages = [...prevMessages];
+          updatedMessages[updatedMessages.length - 1] = { sender: "User", text: `Movement: ${action}` };
+          return updatedMessages;
+        }
+        return prevMessages; 
+      });
+    }
+  }
+
+  else if (!action.includes("x:0 y:0") && !action.includes("x:0.00 y:0.00")) {
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { sender: "User", text: `Movement: ${action}` },
+      { sender: "System", text: `Received: ${action}` },
+    ]);
+    ws.send(JSON.stringify(action) + "\n");
+  }
+};
+
+  
+
 
   // Handle object search input
   const handleSearchObject = (object) => {
@@ -31,7 +116,7 @@ function App() {
       addMessage("System", "👉 Use the control buttons to move the robot: Up, Down, Left, Right, and Stop.");
       addMessage("System", "🔍 Type an object name in the search bar to find it (e.g., 'traffic light').");
       addMessage("System", "❗ Type 'help' anytime for instructions like these.");
-      return; 
+      return;
     }
 
     setSearchObject(object);
@@ -51,31 +136,30 @@ function App() {
   // Simulate object detection (replace with actual logic)
   useEffect(() => {
     if (searchObject) {
-      // Check if the object exists in the detections
-      const objectFoundInDetection = detections.some((detection) => detection[0].toLowerCase() === searchObject.toLowerCase());
+      console.log("Boxes received:", boxes);
+      console.log("Searching for:", searchObject);
 
-      // Add appropriate message based on whether the object is found
-      if (objectFoundInDetection) {
-        setTimeout(() => {
-          addMessage("System", `Object "${searchObject}" found!`);
-          setSearchObject(null);
-        }, 500);  // Delay the message to simulate the system response
-      } else {
-        setTimeout(() => {
-          addMessage("System", `Object "${searchObject}" not found.`);
-          setSearchObject(null);
-        }, 500);  // Delay the message to simulate the system response
-      }
+      // Check if the object exists in the detections
+      const boxLabels = boxes.map(box => box?.[0]);
+      console.log("Available labels:", boxLabels);
+
+      const objectFound = boxLabels.some(label => label && label.toLowerCase() === searchObject.toLowerCase());
+
+      addMessage("System", objectFound ? `✅ Object "${searchObject}" found!` : `❌ Object "${searchObject}" not found.`);
+      setSearchObject("");
     }
-  }, [searchObject, detections]);
+  }, [searchObject, boxes]);
 
   return (
     <div className="App">
       <MessageBox messages={messages} />
       <div className="content">
         <h1>Robot Control System</h1>
-        <CameraDisplay detections={detections} />
+        <CameraDisplay imageSrc={imageSrc} detections={showBoundingBoxes ? boxes : []} />
         <ControlButtons onMove={handleMove} />
+        <button className="toggle-bbox-button" onClick={toggleBoundingBoxes}>
+          {showBoundingBoxes ? "Hide Bounding Boxes" : "Show Bounding Boxes"}
+        </button>
         <ObjectInput setSearchObject={handleSearchObject} />
       </div>
     </div>
