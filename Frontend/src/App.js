@@ -54,59 +54,60 @@ function App() {
 
   const [isControllerActive, setIsControllerActive] = useState(true);
 
-const handleMove = (action) => {
-  if (action.includes("x:2 y:2") || action.includes("Button Clicked") || action.includes("Key Press:")) {
-    setIsControllerActive(false); 
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { sender: "User", text: "Request Stop" },
-      { sender: "System", text: "Received: Request Stop" },
-    ]);
-    ws.send(JSON.stringify(action) + "\n");
-    return; 
-  }
+  const handleMove = (action) => {
+    if (action.includes("x:2 y:2") || action.includes("Button Clicked") || action.includes("Key Press:")) {
+      setIsControllerActive(false);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { sender: "User", text: "Request Stop" },
+        { sender: "System", text: "Received: Request Stop" },
+      ]);
+      // ws.send(JSON.stringify(action) + "\n");
+      return;
+    }
 
-  if (action.startsWith("Controller:") && isControllerActive) {
-    setMessages((prevMessages) => {
-      if (prevMessages.length > 0 && prevMessages[prevMessages.length - 1].text.startsWith("Movement: Controller:")) {
-        // Replace the last message instead of adding a new one
-        const updatedMessages = [...prevMessages];
-        updatedMessages[updatedMessages.length - 1] = { sender: "User", text: `Movement: ${action}` };
-        return updatedMessages;
-      } else {
-        // Add new message if no previous controller message
-        return [...prevMessages, { sender: "User", text: `Movement: ${action}` }];
-      }
-    });
-    ws.send(JSON.stringify(action) + "\n");
-  } 
-  
-  else if (action.startsWith("Controller:") && !isControllerActive) {
-    // Only activate the controller if action is non-zero
-    if (action !== "Controller: x:0.00 y:0.00") {
-      setIsControllerActive(true); // Reactivate controller
+    if (action.startsWith("Controller:") && isControllerActive) {
       setMessages((prevMessages) => {
-        if (action !== "Controller: x:0.00 y:0.00") {
+        if (prevMessages.length > 0 && prevMessages[prevMessages.length - 1].text.startsWith("Movement: Controller:")) {
+          // Replace the last message instead of adding a new one
           const updatedMessages = [...prevMessages];
           updatedMessages[updatedMessages.length - 1] = { sender: "User", text: `Movement: ${action}` };
           return updatedMessages;
+        } else {
+          // Add new message if no previous controller message
+          return [...prevMessages, { sender: "User", text: `Movement: ${action}` }];
         }
-        return prevMessages; 
       });
+      // ws.send(JSON.stringify(action) + "\n");
     }
-  }
 
-  else if (!action.includes("x:0 y:0") && !action.includes("x:0.00 y:0.00")) {
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { sender: "User", text: `Movement: ${action}` },
-      { sender: "System", text: `Received: ${action}` },
-    ]);
+    else if (action.startsWith("Controller:") && !isControllerActive) {
+      // Only activate the controller if action is non-zero
+      if (action !== "Controller: x:0.00 y:0.00") {
+        setIsControllerActive(true); // Reactivate controller
+        setMessages((prevMessages) => {
+          if (action !== "Controller: x:0.00 y:0.00") {
+            const updatedMessages = [...prevMessages];
+            updatedMessages[updatedMessages.length - 1] = { sender: "User", text: `Movement: ${action}` };
+            return updatedMessages;
+          }
+          return prevMessages;
+        });
+      }
+    }
+
+    else if (!action.includes("x:0 y:0") && !action.includes("x:0.00 y:0.00")) {
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { sender: "User", text: `Movement: ${action}` },
+        { sender: "System", text: `Received: ${action}` },
+      ]);
+      // ws.send(JSON.stringify(action) + "\n");
+    }
+
     ws.send(JSON.stringify(action) + "\n");
-  }
-};
-
-  
+    ws.send("Controller: x:-0.00 y:0.00" + "\n");
+  };
 
 
   // Handle object search input

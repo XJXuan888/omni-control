@@ -62,20 +62,23 @@ const ControlButtons = ({ onMove }) => {
       if (gamepad) {
         if (!gamepadConnected) setGamepadConnected(true);
 
+        // Left Stick X-axis (Left/Right movement)
         const xAxis = gamepad.axes[0]; // Left stick X-axis
-        const yAxis = gamepad.axes[1]; // Left stick Y-axis
-
-        // Dead zone threshold
         const normalizedX = Math.abs(xAxis) > 0.2 ? xAxis : 0;
-        const normalizedY = Math.abs(yAxis) > 0.2 ? yAxis : 0;
+
+        // Triggers for Forward/Backward Movement
+        const leftTrigger = gamepad.buttons[6].value; // LT
+        const rightTrigger = gamepad.buttons[7].value; // RT
+        let yAxis = leftTrigger - rightTrigger;
 
         // Use gamepad input only if no keys are pressed
         if (activeKeys.size === 0) {
           lastInputRef.current = 'gamepad';
-          if (normalizedX !== prevMoveRef.current.x || normalizedY !== prevMoveRef.current.y) {
-            const action = `Controller: x:${normalizedX.toFixed(2)} y:${normalizedY.toFixed(2)}`;
+
+          if (normalizedX !== prevMoveRef.current.x || yAxis !== prevMoveRef.current.y) {
+            const action = `Controller: x:${normalizedX.toFixed(2)} y:${yAxis.toFixed(2)}`;
             onMove(action);
-            prevMoveRef.current = { x: normalizedX, y: normalizedY };
+            prevMoveRef.current = { x: normalizedX, y: yAxis };
           }
         }
       } else {
@@ -84,6 +87,7 @@ const ControlButtons = ({ onMove }) => {
 
       requestAnimationFrame(handleGamepadInput);
     };
+
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
