@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CameraDisplay from './components/CameraDisplay';
 import ControlButtons from './components/ControlButtons';
 import ObjectInput from './components/ObjectInput';
 import MessageBox from './components/MessageBox';
+import LidarMap from './components/LidarDisplay';
+
 import './App.css';
 
 function startWS() {
@@ -14,45 +16,104 @@ function startWS() {
 }
 
 const ws = window.ws = startWS()
-let ws_listener = undefined
 
 function App() {
   const [messages, setMessages] = useState([]);
-  const [imageSrc, setImageSrc] = useState(null);
+  // const [imageSrc, setImageSrc] = useState(null);
   const [searchObject, setSearchObject] = useState('');
-  const welcomeShown = React.useRef(false);
   const [boxes, setBoxes] = useState([]);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
+  const [lidarpoints, setLidarPoints] = useState([]);
+  const [isControllerActive, setIsControllerActive] = useState(true);
+  const [robotHeading, setRobotHeading] = useState(0.0);
+  const welcomeShown = useRef(false);
+
+  // useEffect(() => {
+  //   const controller = new AbortController();
+  //   let currentUrl = null;
+  
+  //   const fetchImage = async () => {
+  //     try {
+  //       const res = await fetch(`http://192.168.1.52:8085/image?t=${Date.now()}`, {
+  //         signal: controller.signal,
+  //         credentials: 'omit' // Avoid sending cookies
+  //       });
+        
+  //       const blob = await res.blob();
+  //       const newUrl = URL.createObjectURL(blob);
+        
+  //       setImageSrc(prev => {
+  //         if (prev) URL.revokeObjectURL(prev);
+  //         return newUrl;
+  //       });
+  //     } catch (err) {
+  //       if (err.name !== 'AbortError') {
+  //         console.error("Fetch error:", err);
+  //       }
+  //     }
+  //   };
+  
+  //   // Initial fetch + periodic updates
+  //   fetchImage();
+  //   const interval = setInterval(fetchImage, 200);
+    
+  //   return () => {
+  //     controller.abort();
+  //     clearInterval(interval);
+  //     if (imageSrc) URL.revokeObjectURL(imageSrc);
+  //   };
+  // }, []);
 
   const toggleBoundingBoxes = () => {
     setShowBoundingBoxes(prev => !prev);
   };
 
-  if (ws_listener !== undefined)
-    ws.removeEventListener("message", ws_listener)
-  ws_listener = m => {
-    const [image_id, ...data] = JSON.parse(m.data)
-    console.log(image_id)
-    fetch(`/var/${image_id}`)
-      .then(response => response.blob()) // Get the image as a blob
-      .then(blob => {
-        const objectURL = URL.createObjectURL(blob);
-        setImageSrc(objectURL);
-      })
-      .catch(error => {
-        console.error('Error fetching the image:', error);
-      });
+  useEffect(() => {
+    function listener(msg) {
+      try {
+        const [msg_type, ...payload] = JSON.parse(msg.data);
+        //console.log("Parsed WebSocket message:", JSON.parse(msg.data));
+        if (msg_type in hooks) hooks[msg_type](...payload);
+      } catch (e) {
+        // console.error(e);
+      }
+    }
+    ws.addEventListener("message", listener)
+    return () => ws.removeEventListener("message", listener);
+  })
 
-    setBoxes(data)
+  const hooks = {
+    image(data) {
+      setBoxes(data)
+    },
+    laser(buffer) {
+      // Decode the base64 string to binary data
+      const binaryData = atob(buffer);  // Converts base64 string to binary (string of characters)
+
+      // Create a typed array to store the data (e.g., Float32Array for 32-bit floats)
+      const byteArray = new Uint8Array(binaryData.length);
+
+      // Populate the byte array
+      for (let i = 0; i < binaryData.length; i++) {
+        byteArray[i] = binaryData.charCodeAt(i);
+      }
+
+      // Now you can convert the byteArray to a typed array (e.g., Float32Array)
+      const dataView = new DataView(byteArray.buffer);
+      const pointcloud = new Float32Array(dataView.buffer);
+
+      // The floatArray now contains the decoded array of points
+      setLidarPoints(pointcloud)
+    },
+    rotation(data) {
+      setRobotHeading((data?.x ?? 0.0) * 180 / Math.PI)
+    }
   }
-  ws.addEventListener("message", ws_listener)
 
   // Function to add messages to the message box
   const addMessage = (sender, text) => {
     setMessages((prev) => [...prev, { sender, text }]);
   };
-
-  const [isControllerActive, setIsControllerActive] = useState(true);
 
   const handleMove = (action) => {
     if (action.includes("x:2 y:2") || action.includes("Button Clicked") || action.includes("Key Press:")) {
@@ -104,9 +165,9 @@ function App() {
       ]);
       // ws.send(JSON.stringify(action) + "\n");
     }
-
-    ws.send(JSON.stringify(action) + "\n");
-    ws.send("Controller: x:-0.00 y:0.00" + "\n");
+    const message = JSON.stringify(action) + "\n"
+    ws.send(message);
+    console.log("WS <<", message);
   };
 
 
@@ -137,13 +198,8 @@ function App() {
   // Simulate object detection (replace with actual logic)
   useEffect(() => {
     if (searchObject) {
-      console.log("Boxes received:", boxes);
-      console.log("Searching for:", searchObject);
-
       // Check if the object exists in the detections
       const boxLabels = boxes.map(box => box?.[0]);
-      console.log("Available labels:", boxLabels);
-
       const objectFound = boxLabels.some(label => label && label.toLowerCase() === searchObject.toLowerCase());
 
       addMessage("System", objectFound ? `✅ Object "${searchObject}" found!` : `❌ Object "${searchObject}" not found.`);
@@ -156,12 +212,15 @@ function App() {
       <MessageBox messages={messages} />
       <div className="content">
         <h1>Robot Control System</h1>
-        <CameraDisplay imageSrc={imageSrc} detections={showBoundingBoxes ? boxes : []} />
+        <CameraDisplay detections={showBoundingBoxes ? boxes : []} />
         <ControlButtons onMove={handleMove} />
+
         <button className="toggle-bbox-button" onClick={toggleBoundingBoxes}>
           {showBoundingBoxes ? "Hide Bounding Boxes" : "Show Bounding Boxes"}
         </button>
+
         <ObjectInput setSearchObject={handleSearchObject} />
+        <LidarMap points={lidarpoints} onMove={handleMove} heading={robotHeading} />
       </div>
     </div>
   );

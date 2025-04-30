@@ -121,7 +121,6 @@ const ControlButtons = ({ onMove }) => {
       </div>
       <div className="control-buttons">
 
-
         <button
           className={`control-button up ${activeKeys.has('ArrowUp') ? 'active' : ''}`}
           onClick={handleButtonClick(0, -1)}
