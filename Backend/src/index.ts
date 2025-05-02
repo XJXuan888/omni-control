@@ -36,12 +36,20 @@ const args = parser.parse_args(process.argv.slice(2));
 createHttpWebServer(args.port, args.dev);
 createUnixSocketServer(args.socket);
 
-// Close server on SIGINT
-process.on("SIGINT", () => {
-  console.log("[INFO]", "Received SIGINT, closing servers...");
+// Graceful shutdown helper
+function handleShutdown(signal: string) {
+  console.log(`[INFO] Received ${signal}, closing servers…`);
+  // notify your servers via the event hub
   hub.dispatchEvent(new Event("shutdown"));
-  // Reset signal handler
+
+  // prevent duplicate calls
   process.removeAllListeners("SIGINT");
-  // Exit after 1 second
+  process.removeAllListeners("SIGTERM");
+
+  // force exit after 1 s if things hang
   setTimeout(() => process.exit(0), 1000).unref();
-});
+}
+
+// Catch both Ctrl-C and docker/systemd stops
+process.on("SIGINT",  () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
